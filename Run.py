@@ -28,15 +28,15 @@ def mesclaModelo(Modelo, Parametros):
         Regra = {}
         Regra['refreshPolicy'] = pan["regra"]
         Partitions =None # pan['partitions']
-
+        EncontrouTabela = None
         i =0
         #Busca a tabela que irá receber a regra  do modelo 
         for tab in Modelo['model']['tables']:
             if (tab['name'] == Nometabela):
-                f= True 
+                EncontrouTabela= True 
                 break
             i+=1
-        if (f==True):
+        if (EncontrouTabela==True):
             #aplica regra 
             
             part = Modelo['model']['tables'][i]
@@ -141,7 +141,7 @@ def main():
     file_path = os.path.dirname(os.path.realpath(__file__))
     NomeModelo, file_path = GetNameProject(file_path)
 
-
+    #file_path =r'C:\Users\User\source\repos\Dataset Teste\Incremental_RH1'
     fileModelo = file_path+ "\\Model.bim"
     fileRefresh = file_path+"\\regras.tmls"
     rmodel = abreModelo(fileModelo)
@@ -161,7 +161,7 @@ def main():
     
     #Obtem atributos individuais do modelo original , esses valores serão utilizado no Novo Modelo 
     M_culture = rmodel['culture']
-    M_discourageImplicitMeasures=rmodel['discourageImplicitMeasures']
+    M_discourageImplicitMeasures=rmodel.get('discourageImplicitMeasures')
     M_dataSources =rmodel['dataSources']
     M_tables=rmodel['tables']
     M_relationships = rmodel['relationships']

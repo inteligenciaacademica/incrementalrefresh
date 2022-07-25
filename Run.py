@@ -1,20 +1,24 @@
 import json
-import os, io, sys
-from pickle import FALSE
+import os, io, sys, csv
+from pickle import FALSE # utilizado para converter tipo de carecteres  UTF8
 import xml.etree.ElementTree as ET
-import codecs
+import codecs, time
+
+from datetime import datetime
 
 
 def abreModelo(fileModelo):
-
-    path = fileModelo
-    print("Abre arquivo :" +fileModelo)
-    f = open(path, encoding='utf-8')
-    
-    model = f.read()
-    f.close()
-    rmodel = json.loads(model)
-    return rmodel 
+    try:
+        path = fileModelo
+        print("Abrindo arquivo :" +fileModelo)
+        f = open(path, encoding='utf-8')
+        
+        model = f.read()
+        f.close()
+        rmodel = json.loads(model)
+        return rmodel 
+    except:
+        print("Problemas ao abrir o arquivo!\n Verifique se o mesmo existe!",)
 
 
 #Esta função é responsável por aplicar  as regras ao modelo 
@@ -45,7 +49,7 @@ def mesclaModelo(Modelo, Parametros):
                 if  N == 'name':
                     objTabela['name'] = part['name']
                     objTabela['refreshPolicy'] =pan["regra"]
-                      
+       
                 if  N == 'columns':
                     objTabela['columns'] = part['columns']
                 if  N == 'measures':
@@ -73,6 +77,8 @@ def mesclaModelo(Modelo, Parametros):
 
 def salvaNovoModelo(modelo, path,name):
     #verifica se existe a pasta TMLS
+
+    
     if not os.path.exists(path):
         os.mkdir(path)
 
@@ -123,28 +129,141 @@ def GetNameProject(path):
             break
     return Name, path_smproj
 
-def main():
-    #busca o diretório do arquivo run.py
-    Texto = '--------------------------------------------------------------------------\n'
-    Texto = Texto+'Esse script deve ser salvo na pasta raiz do projeto.\n'
-    Texto = Texto+'\t-Todas as regras devem ser cadastradas em um arquivo regras.tmls.\n'
-    Texto = Texto+'\t-O novo modelo será salvo no diretório Tmls como nome Model.bim. \n'
-    Texto = Texto+'\t-Este script pode não funcionar corretamente para casos em que   \n'
-    Texto = Texto+'\t utiliza mais de uma fonte de dados \n'
-    Texto = Texto+'\t  \n'
-    Texto = Texto+'Após a implementação  é necessário atualizar as credências em PowerBi Premium (Data source credentials) \n'
-    Texto = Texto+'PowerBi Premium (Data source credentials)  \n'
-    Texto = Texto+'--------------------------------------------------------------------------\n'
-    print(Texto)
 
 
+def abreRegra(path):
+    path 
+    print("Abrindo arquivo :" +fileModelo)
+    f = open(path, encoding='utf-8')
+    
+    text = f.read()
+    f.close()
+
+
+
+def configuraRegra(Modelo,pathDir):
+
+
+
+    #-------- Verifica o arquivo  com os nomes das tabelas 
+    if (os.path.exists(pathDir)==False):
+        print("Relação de tabelas não encontradas!")
+        exit()
+    #cria objeto json com a estrutura necessaria
+    TabelasRegras ={"Table":[],"expressions":[]}
+    linha = 0 
+    with open(pathDir , 'r') as csvfile:
+        _reader = csv.reader(csvfile, skipinitialspace=True)
+        _header = next(_reader)
+        _Conf_Header =['Nometabela', 'coluna', 'rollingWindowGranularity', 'rollingWindowPeriods', 'incrementalGranularity', 'incrementalPeriods', 'incrementalPeriodsOffset']
+        if(_Conf_Header != _header ):
+            print("Arquivo inválido ! verifique a estrutura\n", _Conf_Header)
+            sys.exit("Erro no arquivo  TabelasRegra.txt")
+        
+        for row in _reader:
+            if row == []:# Se linha estiver sem o nome da tabela sair 
+                break
+            Nometabela, column, rollingWindowGranularity, rollingWindowPeriods, incrementalGranularity, incrementalPeriods, incrementalPeriodsOffset = row
+            _Nometabela = Nometabela.strip()
+            _column = column.strip()
+            _rollingWindowGranularity = rollingWindowGranularity.strip()
+            _rollingWindowPeriods  = int(rollingWindowPeriods.strip())
+            _incrementalGranularity  = incrementalGranularity.strip()
+            _incrementalPeriods  = int(incrementalPeriods.strip())
+            _incrementalPeriodsOffset = int(incrementalPeriodsOffset.strip())
+
+
+
+            print(" tabela:" ,_Nometabela,"coluna:" ,_column)
+            EncontrouTabela = None
+            EncontrouColuna  = None
+            i=0
+            if Nometabela == "": # Se linha estiver sem o nome da tabela sair 
+                break
+          
+            for tab in Modelo['model']['tables']: ##For Tabelas
+                if (tab['name'] == _Nometabela):
+                    EncontrouTabela= True 
+                    _TabelaPartition =Modelo['model']['tables'][i]['partitions']
+                    Columns =Modelo['model']['tables'][i]['columns']
+                    print("Busca coluna:")
+                    for col in Columns: #for Colunas
+                        if(col['name'] ==_column.strip()):
+                            print("Coluna encontrada:" ,_column )
+                            EncontrouColuna = True
+                            _pollingExpression  = "let MaxPeriodo = List.Max(#\""+_Nometabela+"\"["+ _column +"]), accountForNull = if MaxPeriodo = null then #datetime(1901, 01, 01, 00, 00, 00) else MaxPeriodo in accountForNull"
+                            break #se achou a coluna sair dor for Tabelas
+                    break #Se achou tabelas sair dor For tabela
+                i= i+1
+            if EncontrouTabela!=True:
+                print("Tabela ",_Nometabela," não encontrada!")
+            if EncontrouColuna!=True:
+                print("Coluna ", _column ,"não encontrada!\n")
+
+                
+            if EncontrouColuna == True and EncontrouColuna == True :
+                Regra={}
+                Regra['policyType'] ='basic'
+                Regra['rollingWindowGranularity'] =_rollingWindowGranularity
+                Regra['rollingWindowPeriods'] =_rollingWindowPeriods
+                Regra['incrementalGranularity'] =_incrementalGranularity
+                Regra['incrementalPeriods'] =_incrementalPeriods
+                if _incrementalPeriodsOffset == -1:
+                    Regra['incrementalPeriodsOffset'] =_incrementalPeriodsOffset
+                    
+                Regra['pollingExpression'] =_pollingExpression
+                Regra['sourceExpression'] =_TabelaPartition[0]['source']['expression']
+            
+                #------------------------------------------------
+                tabela ={}
+                tabela['name'] =Nometabela
+                tabela['partitions'] =_TabelaPartition
+                tabela['regra']= Regra
+                
+                TabelasRegras["Table"].append(tabela)
+        
+
+    RangeStart = {"name":"RangeStart","kind":"m", "expression":[
+                "let",
+                "    Source = #datetime(2018, 1, 1, 0, 0, 0) meta [IsParameterQuery=true, Type=\"DateTime\", IsParameterQueryRequired=true]",
+                "in",
+                "    Source"]}
+    RangeEnd = {"name":"RangeEnd","kind":"m", "expression":[
+                "let",
+                "    Source = #datetime(2023, 12, 31, 0, 0, 0) meta [IsParameterQuery=true, Type=\"DateTime\", IsParameterQueryRequired=true]",
+                "in",
+                "    Source"]}
+    TabelasRegras['expressions']= [RangeStart,RangeEnd]
+    #TabelasRegras['annotations']= [{"Name":"geraRegra","value":time.time()}]
+    return TabelasRegras
+   
+#Função Gerana novo modelo, Esta função ira decompor o modelo atual para  gerar um novo  mesclando os arquivo contendo a regras
+def GeraNovoModelo(NovaRgera):
+
+    
+    RegraName = "Regras.json"
+    ModeloName = "Model.bim"
+    SubDir ="Tmls"
+    TabelasRegra =  "TabelasRegra.txt"
     file_path = os.path.dirname(os.path.realpath(__file__))
     NomeModelo, file_path = GetNameProject(file_path)
 
-    #file_path =r'C:\Users\User\source\repos\Dataset Teste\Incremental_RH1'
-    fileModelo = file_path+ "\\Model.bim"
-    fileRefresh = file_path+"\\regras.tmls"
+    
+    fileModelo = file_path+ "\\"+ModeloName
     rmodel = abreModelo(fileModelo)
+
+    #verifica se existe uam regra caso não ele irá gerar novamente 
+    if (os.path.exists(file_path+"\\"+RegraName)==False):
+        Regra = configuraRegra(rmodel,file_path+ "\\"+TabelasRegra)
+        salvaNovoModelo(Regra, file_path,RegraName)
+    # para soluncionar pontualmente um problema forço a geração de um novo aquivo de regra a cada execução 
+    if( NovaRgera == True):
+       Regra = configuraRegra(rmodel,file_path+ "\\"+TabelasRegra)
+       salvaNovoModelo(Regra, file_path,RegraName)
+
+    fileRefresh = file_path+"\\"+RegraName
+
+
     refresh = abreModelo(fileRefresh)
     rmodel= mesclaModelo(rmodel,refresh)
    
@@ -175,6 +294,7 @@ def main():
     M =  json.loads(M) 
     #Monta Modelo Novo  , com os atributos do modelo original 
     M['defaultPowerBIDataSourceVersion']='powerBI_V3'
+    M['name']= NomeModelo
     M['discourageImplicitMeasures']=True
     M['culture']= rmodel['culture']
     M['dataSources']= rmodel['dataSources']
@@ -183,10 +303,11 @@ def main():
     M['roles']=rmodel['roles']
     M['expressions']=M_expressions
     M['annotations']=rmodel['annotations']
+    M['annotations'].append({"Name":"geraRegra","value":time.time(),"data":datetime.today().strftime('%Y-%m-%d %H:%M:%S')})
  
     ModelCreate['createOrReplace']['object']['database']  =NomeModelo
     ModelCreate['createOrReplace']['database']['name'] =NomeModelo
-    ModelCreate['createOrReplace']['database']['compatibilityLevel'] =1500
+    ModelCreate['createOrReplace']['database']['compatibilityLevel'] =1550
     ModelCreate['createOrReplace']['database']['model']  =M
     DataSource =ModelCreate['createOrReplace']['database']['model']['dataSources'][0]['name']
     ModelCreate['createOrReplace']['database']['model']['dataSources'][0]['name'] = New_DataSource 
@@ -197,15 +318,42 @@ def main():
             tab['partitions'][0]['source']['expression'][1] = tab['partitions'][0]['source']['expression'][1].replace(DataSource,New_DataSource)
     except:
         pass
+
+    refresh_model = {   "refresh": {  "type": "full", "objects": [   {        "database": NomeModelo      }    ]  }}
   
-    salvaNovoModelo(ModelCreate,file_path+"\\Tmls","Model.bim")
+    salvaNovoModelo(ModelCreate,file_path+"\\"+SubDir,ModeloName)
+    salvaNovoModelo(refresh_model,file_path+"\\"+SubDir,"refresh_model.tmls")
+
+
+def main():
+    #busca o diretório do arquivo run.py
+    Texto = '--------------------------------------------------------------------------\n'
+    Texto = Texto+'Esse script deve ser salvo na pasta raiz do projeto.\n'
+    Texto = Texto+'-Para informar as tabelas que serão configuradas com Incremental Refresh\n'
+    Texto = Texto+' deve ser configurado um arquivo "TabelasRegra.txt" com o nome da tabela e coluda de referência\n'
+    Texto = Texto+'\t  Exemplo:\n'
+    Texto = Texto+'\t  "FI DF007_PartAbertoClientesForn",   "DataReferencia"\n'
+    Texto = Texto+'\t \n'
+    Texto = Texto+'\t-O novo modelo será salvo no diretório Tmls como nome Model.bim. \n'
+    Texto = Texto+'\t  \n'
+    Texto = Texto+'Após a implementação  é necessário atualizar as credências em PowerBi Premium (Data source credentials) \n'
+    Texto = Texto+'PowerBi Premium (Data source credentials)  \n'
+    Texto = Texto+'--------------------------------------------------------------------------\n'
+    print(Texto)
+    
+   #começa aqui Passo1 
+    NovaRgera = True 
+    GeraNovoModelo(NovaRgera)
+    
+    
 
 
 def pause(massage = 'press any key to continue'):  # this function will pause the script with a default massage or a custome one.
     print(massage)
     os.system('pause >NULL')  # this will pause untill any key is pressed.
     return 0
-  
+
+
 
 
 if __name__ == "__main__":
